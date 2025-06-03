@@ -84,7 +84,7 @@ class Message:
 
     def _create_response_json_content(self):
         action = self.request.get("action")
-        content = {"result": self.message}
+        content = {"value": self.message}
         content_encoding = "utf-8"
         response = {
             "content_bytes": self._json_encode(content, content_encoding),
@@ -104,7 +104,7 @@ class Message:
 
     def process_events(self, mask):
         if mask & selectors.EVENT_READ:
-            self.read()
+            return self.read()
         if mask & selectors.EVENT_WRITE:
             self.write()
 
@@ -120,7 +120,7 @@ class Message:
 
         if self.jsonheader:
             if self.request is None:
-                self.process_request()
+                return self.process_request()
 
     def write(self):
         if self.request:
@@ -181,6 +181,9 @@ class Message:
             encoding = self.jsonheader["content-encoding"]
             self.request = self._json_decode(data, encoding)
             print(f"Received request {self.request!r} from {self.addr}")
+            return {
+                "counter": self.request
+            }
         else:
             # Binary or unknown content-type
             self.request = data

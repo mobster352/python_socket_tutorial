@@ -5,6 +5,8 @@ import traceback
 
 import server_message
 
+import queue
+
 class Server_Player:
     def __init__(self, host, port):
         self.host = host
@@ -24,25 +26,26 @@ class Server_Player:
         lsock.setblocking(False)
         self.sel.register(lsock, selectors.EVENT_READ, data=None)
 
-    def accept_wrapper(self, sock):
+    def accept_wrapper(self, sock, counter):
         conn, addr = sock.accept()  # Should be ready to read
         print(f"Accepted connection from {addr}")
         conn.setblocking(False)
-        message = server_message.Message(self.sel, conn, addr, "hello world from server")
-        self.sel.register(conn, selectors.EVENT_READ, data=message)
+        events = selectors.EVENT_READ | selectors.EVENT_WRITE
+        message = server_message.Message(self.sel, conn, addr, counter)
+        self.sel.register(conn, events, data=message)
 
-    def check_server_socket(self):
+    def check_server_socket(self, q, counter):
         if not self.is_socket_locked:
             self.is_socket_locked = True
             try:
                 events = self.sel.select(timeout=None)
                 for key, mask in events:
                     if key.data is None:
-                        self.accept_wrapper(key.fileobj)
+                        self.accept_wrapper(key.fileobj, counter)
                     else:
                         message = key.data
                         try:
-                            message.process_events(mask)
+                            q.put(message.process_events(mask))
                         except Exception:
                             print(
                                 f"Main: Error: Exception for {message.addr}:\n"

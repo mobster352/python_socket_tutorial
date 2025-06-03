@@ -6,6 +6,18 @@ from server_player import Server_Player
 from client_player import Client_Player
 
 import threading
+import queue
+
+peer_counter = 0
+
+def worker(q):
+    item = q.get()
+    if item is None:
+        return
+    else:
+        global peer_counter
+        peer_counter = item["counter"]["value"]
+        q.task_done()
 
 def main():
     pygame.init()
@@ -27,6 +39,8 @@ def main():
     host, port = '127.0.0.1', 65432
     server_player = None
     client_player = None
+
+    q = queue.Queue()
 
     while run:
         event_list = pygame.event.get()
@@ -50,17 +64,31 @@ def main():
             client_connect_button.update_button(1280, 720)
             client_connect_button.draw_button("white", "red", font, screen)
         elif server_player != None:
-            counter_surface, rect = font.render(f"Server Counter: {counter}", "white", (0,0,0))
+            counter_surface, rect = font.render(f"Counter: {counter}", "white", (0,0,0))
             screen.blit(counter_surface, (20, 10))
 
-            server_thread = threading.Thread(target=server_player.check_server_socket)
+            t = threading.Thread(target=worker, args=(q,))
+            t.start()
+    
+            counter_surface, rect = font.render(f"Peer Counter: {peer_counter}", "white", (0,0,0))
+            screen.blit(counter_surface, (400, 10))
+
+            server_thread = threading.Thread(target=server_player.check_server_socket, args=(q, counter))
             server_thread.daemon = True
             server_thread.start()
         elif client_player != None:
-            counter_surface, rect = font.render(f"Client Counter: {counter}", "white", (0,0,0))
+            client_player.setup_request(counter)
+
+            counter_surface, rect = font.render(f"Counter: {counter}", "white", (0,0,0))
+            screen.blit(counter_surface, (20, 10))
+
+            t = threading.Thread(target=worker, args=(q,))
+            t.start()
+
+            counter_surface, rect = font.render(f"Peer Counter: {peer_counter}", "white", (0,0,0))
             screen.blit(counter_surface, (400, 10))
 
-            client_thread = threading.Thread(target=client_player.check_client_socket)
+            client_thread = threading.Thread(target=client_player.check_client_socket, args=(q,))
             client_thread.daemon = True
             client_thread.start()
 

@@ -91,7 +91,7 @@ class Message:
 
     def process_events(self, mask):
         if mask & selectors.EVENT_READ:
-            self.read()
+            return self.read()
         if mask & selectors.EVENT_WRITE:
             self.write()
 
@@ -107,7 +107,7 @@ class Message:
 
         if self.jsonheader:
             if self.response is None:
-                self.process_response()
+                return self.process_response()
 
     def write(self):
         if not self._request_queued:
@@ -193,6 +193,9 @@ class Message:
             self.response = self._json_decode(data, encoding)
             print(f"Received response {self.response!r} from {self.addr}")
             self._process_response_json_content()
+            return {
+                "counter": self.response
+            }
         else:
             # Binary or unknown content-type
             self.response = data
@@ -201,5 +204,8 @@ class Message:
                 f"response from {self.addr}"
             )
             self._process_response_binary_content()
+            return {
+                "counter": self.response
+            }
         # Close when response has been processed
         self.close()

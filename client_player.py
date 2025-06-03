@@ -5,17 +5,18 @@ import traceback
 
 import client_message
 
+import queue
+
 class Client_Player:
     def __init__(self, host, port):
         self.host = host
         self.port = port
         self.sel = selectors.DefaultSelector()
         self.request = None
-        self.__setup__()
         self.is_socket_locked = False
 
-    def __setup__(self):
-        self.request = self.create_request("hello world from client")
+    def setup_request(self, counter):
+        self.request = self.create_request(counter)
         self.start_connection()
 
     def create_request(self, value):
@@ -35,7 +36,7 @@ class Client_Player:
         message = client_message.Message(self.sel, sock, addr, self.request)
         self.sel.register(sock, events, data=message)
 
-    def check_client_socket(self):
+    def check_client_socket(self, q):
         if not self.is_socket_locked:
             self.is_socket_locked = True
             try:
@@ -43,7 +44,7 @@ class Client_Player:
                 for key, mask in events:
                     message = key.data
                     try:
-                        message.process_events(mask)
+                        q.put(message.process_events(mask))
                     except Exception:
                         print(
                             f"Main: Error: Exception for {message.addr}:\n"
