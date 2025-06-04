@@ -12,6 +12,8 @@ sel = selectors.DefaultSelector()
 num_connections = 0
 client_1_port = None
 client_2_port = None
+client_1_conn = None
+client_2_conn = None
 
 client_1_counter = 0
 client_2_counter = 0
@@ -22,12 +24,16 @@ def accept_wrapper(sock):
     global num_connections
     global client_1_port
     global client_2_port
+    global client_1_conn
+    global client_2_conn
     if num_connections == 0:
         num_connections += 1
         client_1_port = addr[1]
+        client_1_conn = conn
     else:
         num_connections += 1
         client_2_port = addr[1]
+        client_2_conn = conn
     conn.setblocking(False)
     events = selectors.EVENT_READ | selectors.EVENT_WRITE
     message = server_message.Message(sel, conn, addr)
@@ -48,7 +54,7 @@ def main():
     print(f"Listening on {(host, port)}")
     lsock.setblocking(False)
     events = selectors.EVENT_READ | selectors.EVENT_WRITE
-    sel.register(lsock, events, data=None)
+    sel.register(lsock, events, data=None)   
 
     try:
         while True:
@@ -75,7 +81,13 @@ def main():
                             # print(f"Client 2 port: {client_2_port}")
                         if mask & selectors.EVENT_WRITE:
                             message.process_events(mask, client_1_counter)
-                        # time.sleep(5)
+                            # time.sleep(5)
+                    except BufferError as e:
+                        print(e)
+                        time.sleep(5)
+                        message.get_data("get_counter")
+                    except RuntimeError as e:
+                        print(e)
                     except Exception:
                         print(
                             f"Main: Error: Exception for {message.addr}:\n"
@@ -85,8 +97,7 @@ def main():
     except KeyboardInterrupt:
         print("Caught keyboard interrupt, exiting")
     finally:
-        # sel.close()
-        pass
+        sel.close()
 
 
 if __name__ == "__main__":

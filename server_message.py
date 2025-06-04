@@ -40,8 +40,8 @@ class Message:
                 self._recv_buffer += data
                 print(f"_recv_buffer: {self._recv_buffer}")
             else:
-                # raise RuntimeError("Peer closed.")
-                print("No data")
+                raise RuntimeError("Client closed")
+                # print("No data")
                 # pass
 
     def _write(self):
@@ -58,7 +58,8 @@ class Message:
                 # Close when the buffer is drained. The response has been sent.
                 if sent and not self._send_buffer:
                     # self.close()
-                    pass
+                    # pass
+                    raise BufferError("Response sent to client")
 
     def _json_encode(self, obj, encoding):
         return json.dumps(obj, ensure_ascii=False).encode(encoding)
@@ -110,6 +111,43 @@ class Message:
             return self.read()
         if mask & selectors.EVENT_WRITE:
             self.write(counter)
+
+    def get_data(self, action):
+        if action == "get_counter":
+            response = self._create_request_json_content_action(action)
+            message = self._create_message(**response)
+            self._send_buffer += message
+            self._write_action()
+
+    def _create_request_json_content_action(self, action):
+        if action == "get_counter":
+            content = {"request": action}
+        else:
+            content = {"result": f"Error: invalid action '{action}'."}
+        content_encoding = "utf-8"
+        response = {
+            "content_bytes": self._json_encode(content, content_encoding),
+            "content_type": "text/json",
+            "content_encoding": content_encoding,
+        }
+        return response
+
+    def _write_action(self):
+        if self._send_buffer:
+            print(f"Sending {self._send_buffer!r} to {self.addr}")
+            try:
+                # Should be ready to write
+                sent = self.sock.send(self._send_buffer)
+            except BlockingIOError:
+                # Resource temporarily unavailable (errno EWOULDBLOCK)
+                pass
+            else:
+                self._send_buffer = self._send_buffer[sent:]
+                # Close when the buffer is drained. The response has been sent.
+                if sent and not self._send_buffer:
+                    # self.close()
+                    pass
+                    # raise BufferError("Response sent to client")
 
     def read(self):
         self._read()
