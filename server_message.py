@@ -5,7 +5,7 @@ import struct
 import sys
 
 class Message:
-    def __init__(self, selector, sock, addr, message):
+    def __init__(self, selector, sock, addr):
         self.selector = selector
         self.sock = sock
         self.addr = addr
@@ -15,7 +15,6 @@ class Message:
         self.jsonheader = None
         self.request = None
         self.response_created = False
-        self.message = message
 
     def _set_selector_events_mask(self, mode):
         """Set selector to listen for events: mode is 'r', 'w', or 'rw'."""
@@ -39,8 +38,11 @@ class Message:
         else:
             if data:
                 self._recv_buffer += data
+                print(f"_recv_buffer: {self._recv_buffer}")
             else:
-                raise RuntimeError("Peer closed.")
+                # raise RuntimeError("Peer closed.")
+                print("No data")
+                # pass
 
     def _write(self):
         if self._send_buffer:
@@ -55,7 +57,8 @@ class Message:
                 self._send_buffer = self._send_buffer[sent:]
                 # Close when the buffer is drained. The response has been sent.
                 if sent and not self._send_buffer:
-                    self.close()
+                    # self.close()
+                    pass
 
     def _json_encode(self, obj, encoding):
         return json.dumps(obj, ensure_ascii=False).encode(encoding)
@@ -82,9 +85,9 @@ class Message:
         message = message_hdr + jsonheader_bytes + content_bytes
         return message
 
-    def _create_response_json_content(self):
+    def _create_response_json_content(self, counter):
         action = self.request.get("action")
-        content = {"value": self.message}
+        content = {"value": counter}
         content_encoding = "utf-8"
         response = {
             "content_bytes": self._json_encode(content, content_encoding),
@@ -102,11 +105,11 @@ class Message:
         }
         return response
 
-    def process_events(self, mask):
+    def process_events(self, mask, counter):
         if mask & selectors.EVENT_READ:
             return self.read()
         if mask & selectors.EVENT_WRITE:
-            self.write()
+            self.write(counter)
 
     def read(self):
         self._read()
@@ -122,10 +125,10 @@ class Message:
             if self.request is None:
                 return self.process_request()
 
-    def write(self):
+    def write(self, counter):
         if self.request:
             if not self.response_created:
-                self.create_response()
+                self.create_response(counter)
 
         self._write()
 
@@ -194,9 +197,9 @@ class Message:
         # Set selector to listen for write events, we're done reading.
         self._set_selector_events_mask("w")
 
-    def create_response(self):
+    def create_response(self, counter):
         if self.jsonheader["content-type"] == "text/json":
-            response = self._create_response_json_content()
+            response = self._create_response_json_content(counter)
         else:
             # Binary or unknown content-type
             response = self._create_response_binary_content()

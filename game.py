@@ -6,18 +6,6 @@ from server_player import Server_Player
 from client_player import Client_Player
 
 import threading
-import queue
-
-peer_counter = 0
-
-def worker(q):
-    item = q.get()
-    if item is None:
-        return
-    else:
-        global peer_counter
-        peer_counter = item["counter"]["value"]
-        q.task_done()
 
 def main():
     pygame.init()
@@ -40,8 +28,6 @@ def main():
     server_player = None
     client_player = None
 
-    q = queue.Queue()
-
     while run:
         event_list = pygame.event.get()
 
@@ -53,7 +39,7 @@ def main():
                 if server_connect_button.check_collisions(mouse_pos):
                     server_player = Server_Player(host, port)
                 if client_connect_button.check_collisions(mouse_pos):
-                    client_player = Client_Player(host, port)
+                    client_player = Client_Player(host, port, counter)
 
         screen.fill("black")
 
@@ -64,33 +50,30 @@ def main():
             client_connect_button.update_button(1280, 720)
             client_connect_button.draw_button("white", "red", font, screen)
         elif server_player != None:
-            counter_surface, rect = font.render(f"Counter: {counter}", "white", (0,0,0))
+            counter_surface, rect = font.render(f"Server Counter: {counter}", "white", (0,0,0))
             screen.blit(counter_surface, (20, 10))
 
-            t = threading.Thread(target=worker, args=(q,))
-            t.start()
-    
-            counter_surface, rect = font.render(f"Peer Counter: {peer_counter}", "white", (0,0,0))
-            screen.blit(counter_surface, (400, 10))
-
-            server_thread = threading.Thread(target=server_player.check_server_socket, args=(q, counter))
+            server_thread = threading.Thread(target=server_player.check_server_socket, args=(counter,))
             server_thread.daemon = True
             server_thread.start()
-        elif client_player != None:
-            client_player.setup_request(counter)
 
-            counter_surface, rect = font.render(f"Counter: {counter}", "white", (0,0,0))
+            counter_surface, rect = font.render(f"Client Counter: {server_player.peer_data}", "white", (0,0,0))
+            screen.blit(counter_surface, (400, 10))
+        elif client_player != None:
+            # client_player.setup_request(counter)
+
+            counter_surface, rect = font.render(f"Client Counter: {counter}", "white", (0,0,0))
             screen.blit(counter_surface, (20, 10))
 
-            t = threading.Thread(target=worker, args=(q,))
-            t.start()
-
-            counter_surface, rect = font.render(f"Peer Counter: {peer_counter}", "white", (0,0,0))
-            screen.blit(counter_surface, (400, 10))
-
-            client_thread = threading.Thread(target=client_player.check_client_socket, args=(q,))
+            client_thread = threading.Thread(target=client_player.check_client_socket)
             client_thread.daemon = True
             client_thread.start()
+
+            if client_player.peer_data is None:
+                counter_surface, rect = font.render(f"Server Counter None: {client_player.peer_data}", "white", (0,0,0))
+            else:
+                counter_surface, rect = font.render(f"Server Counter: {client_player.peer_data["counter"]["value"]}", "white", (0,0,0))
+            screen.blit(counter_surface, (400, 10))
 
         pygame.display.flip()
 

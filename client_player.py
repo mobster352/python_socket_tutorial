@@ -8,12 +8,22 @@ import client_message
 import queue
 
 class Client_Player:
-    def __init__(self, host, port):
+    def __init__(self, host, port, counter):
         self.host = host
         self.port = port
         self.sel = selectors.DefaultSelector()
-        self.request = None
+        self.request = self.create_request(counter)
         self.is_socket_locked = False
+        self.peer_data = None
+
+        self.addr = (self.host, self.port)
+        print(f"Starting connection to {self.addr}")
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        # sock.setblocking(False)
+        self.sock.connect_ex(self.addr)
+        self.events = selectors.EVENT_READ | selectors.EVENT_WRITE
+        message = client_message.Message(self.sel, self.sock, self.addr, self.request)
+        self.sel.register(self.sock, self.events, data=message)
 
     def setup_request(self, counter):
         self.request = self.create_request(counter)
@@ -27,24 +37,22 @@ class Client_Player:
             )
 
     def start_connection(self):
-        addr = (self.host, self.port)
-        print(f"Starting connection to {addr}")
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        # sock.setblocking(False)
-        sock.connect_ex(addr)
-        events = selectors.EVENT_READ | selectors.EVENT_WRITE
-        message = client_message.Message(self.sel, sock, addr, self.request)
-        self.sel.register(sock, events, data=message)
+        message = client_message.Message(self.sel, self.sock, self.addr, self.request)
+        self.sel.modify(self.sock, self.events, data=message)
 
-    def check_client_socket(self, q):
+    def check_client_socket(self):
         if not self.is_socket_locked:
             self.is_socket_locked = True
             try:
-                events = self.sel.select(timeout=1)
+                events = self.sel.select(timeout=None)
                 for key, mask in events:
                     message = key.data
                     try:
-                        q.put(message.process_events(mask))
+                        if mask & selectors.EVENT_READ:
+                            self.peer_data = message.process_events(mask)
+                            # self.is_socket_locked = False
+                        if mask & selectors.EVENT_WRITE:
+                            message.process_events(mask)
                     except Exception:
                         print(
                             f"Main: Error: Exception for {message.addr}:\n"
@@ -59,3 +67,4 @@ class Client_Player:
             finally:
                 # self.sel.close()
                 self.is_socket_locked = False
+                # pass

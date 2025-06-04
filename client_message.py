@@ -118,7 +118,8 @@ class Message:
         if self._request_queued:
             if not self._send_buffer:
                 # Set selector to listen for read events, we're done writing.
-                self._set_selector_events_mask("r")
+                # self._set_selector_events_mask("r")
+                pass
 
     def close(self):
         print(f"Closing connection to {self.addr}")

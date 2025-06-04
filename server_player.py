@@ -5,8 +5,6 @@ import traceback
 
 import server_message
 
-import queue
-
 class Server_Player:
     def __init__(self, host, port):
         self.host = host
@@ -14,6 +12,7 @@ class Server_Player:
         self.sel = selectors.DefaultSelector()
         self.__setup__()
         self.is_socket_locked = False
+        self.peer_data = None
         
     def __setup__(self):
         host, port = self.host, self.port
@@ -24,7 +23,8 @@ class Server_Player:
         lsock.listen()
         print(f"Listening on {(host, port)}")
         lsock.setblocking(False)
-        self.sel.register(lsock, selectors.EVENT_READ, data=None)
+        events = selectors.EVENT_READ | selectors.EVENT_WRITE
+        self.sel.register(lsock, events, data=None)
 
     def accept_wrapper(self, sock, counter):
         conn, addr = sock.accept()  # Should be ready to read
@@ -34,7 +34,7 @@ class Server_Player:
         message = server_message.Message(self.sel, conn, addr, counter)
         self.sel.register(conn, events, data=message)
 
-    def check_server_socket(self, q, counter):
+    def check_server_socket(self, counter):
         if not self.is_socket_locked:
             self.is_socket_locked = True
             try:
@@ -45,7 +45,12 @@ class Server_Player:
                     else:
                         message = key.data
                         try:
-                            q.put(message.process_events(mask))
+                            if mask & selectors.EVENT_READ:
+                                self.peer_data = message.process_events(mask)
+                                # print(f"Peer data: {self.peer_data}")
+                            if mask & selectors.EVENT_WRITE:
+                                message.process_events(mask)
+                                # self.is_socket_locked = False
                         except Exception:
                             print(
                                 f"Main: Error: Exception for {message.addr}:\n"
