@@ -35,7 +35,8 @@ def handle_client(conn, addr, index):
                 if not data:
                     print(f"[-] Client {index+1} disconnected")
                     break
-                value = int.from_bytes(data, byteorder='big')
+                decoded = json.loads(data.decode('utf-8'))
+                value = decoded["counter"]
                 with lock:
                     counters[index] = value
                     print(f"[#] Client {index+1} Counter: {value}")

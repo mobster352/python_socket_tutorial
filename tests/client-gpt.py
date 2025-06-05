@@ -19,7 +19,8 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             action = decoded.get("action")
             if action == "get_counter":
                 counter += 1
-                s.sendall(counter.to_bytes(4, byteorder='big'))
+                data = {"counter": counter}
+                s.sendall(json.dumps(data).encode('utf-8'))
         except Exception as e:
             print(f"[Client] Error: {e}")
             break
